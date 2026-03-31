@@ -1254,6 +1254,299 @@ def get_logs(
         raise typer.Exit(1)
 
 
+def _load_rl_schema() -> dict:
+    """Load the RL config JSON schema bundled with the package."""
+    schema_path = Path(__file__).parent.parent / "data" / "rl_config_schema.json"
+    with open(schema_path) as f:
+        return json.load(f)
+
+
+def _resolve_ref(ref: str, defs: dict) -> dict:
+    """Resolve a $ref like '#/$defs/Foo' to the actual schema dict."""
+    name = ref.rsplit("/", 1)[-1]
+    return defs.get(name, {})
+
+
+def _schema_type_str(prop: dict, defs: dict) -> str:
+    """Derive a human-readable type string from a JSON schema property."""
+    # Simple type
+    if "type" in prop:
+        t = prop["type"]
+        if t == "array":
+            items = prop.get("items", {})
+            inner = items.get("type", "any")
+            return f"list[{inner}]"
+        if t == "object":
+            return "dict"
+        return t
+
+    # $ref
+    if "$ref" in prop:
+        resolved = _resolve_ref(prop["$ref"], defs)
+        return resolved.get("title", prop["$ref"].rsplit("/", 1)[-1])
+
+    # anyOf (nullable or union)
+    if "anyOf" in prop:
+        types = []
+        has_null = False
+        for variant in prop["anyOf"]:
+            if variant.get("type") == "null":
+                has_null = True
+            elif "$ref" in variant:
+                resolved = _resolve_ref(variant["$ref"], defs)
+                types.append(resolved.get("title", variant["$ref"].rsplit("/", 1)[-1]))
+            elif variant.get("type") == "array":
+                items = variant.get("items", {})
+                inner = items.get("type", "any")
+                types.append(f"list[{inner}]")
+            elif "type" in variant:
+                types.append(variant["type"])
+        type_str = " | ".join(types) if types else "any"
+        if has_null:
+            type_str += " | null"
+        return type_str
+
+    # oneOf (discriminated unions)
+    if "oneOf" in prop:
+        types = []
+        for variant in prop["oneOf"]:
+            if "$ref" in variant:
+                resolved = _resolve_ref(variant["$ref"], defs)
+                types.append(resolved.get("title", variant["$ref"].rsplit("/", 1)[-1]))
+        return " | ".join(types) if types else "any"
+
+    # const
+    if "const" in prop:
+        return repr(prop["const"])
+
+    # enum
+    if "enum" in prop:
+        return " | ".join(repr(v) for v in prop["enum"])
+
+    return "any"
+
+
+def _format_default(val: Any) -> str:
+    """Format a default value for display."""
+    if val is None:
+        return "null"
+    if isinstance(val, bool):
+        return str(val).lower()
+    if isinstance(val, str):
+        return f'"{val}"'
+    if isinstance(val, list):
+        if not val:
+            return "[]"
+        return json.dumps(val)
+    if isinstance(val, dict):
+        if not val:
+            return "{}"
+        return json.dumps(val)
+    return str(val)
+
+
+def _collect_fields(
+    properties: dict,
+    defs: dict,
+    prefix: str = "",
+    depth: int = 0,
+    max_depth: int = 1,
+) -> list[tuple[str, str, str, str]]:
+    """Recursively collect (path, type, default, description) tuples from schema properties."""
+    rows: list[tuple[str, str, str, str]] = []
+    for name, prop in properties.items():
+        path = f"{prefix}{name}" if not prefix else f"{prefix}.{name}"
+        type_str = _schema_type_str(prop, defs)
+        desc = prop.get("description", "")
+        default = _format_default(prop.get("default", "—")) if "default" in prop else "required"
+
+        rows.append((path, type_str, default, desc))
+
+        # Recurse into nested objects if within depth limit
+        if depth < max_depth:
+            ref_schema = None
+            if "$ref" in prop:
+                ref_schema = _resolve_ref(prop["$ref"], defs)
+            elif "anyOf" in prop:
+                for variant in prop["anyOf"]:
+                    if "$ref" in variant:
+                        ref_schema = _resolve_ref(variant["$ref"], defs)
+                        break
+            elif "oneOf" in prop:
+                # For discriminated unions, don't auto-expand (user can use --section)
+                pass
+
+            if ref_schema and "properties" in ref_schema:
+                rows.extend(
+                    _collect_fields(
+                        ref_schema["properties"],
+                        defs,
+                        prefix=path,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                    )
+                )
+    return rows
+
+
+@app.command("configs", rich_help_panel="Commands")
+def show_configs(
+    section: Optional[str] = typer.Option(
+        None,
+        "--section",
+        "-s",
+        help="Show a specific config section (e.g. 'trainer', 'orchestrator')",
+    ),
+    depth: int = typer.Option(
+        1,
+        "--depth",
+        "-d",
+        help="How many levels of nested configs to expand (default: 1)",
+    ),
+    search: Optional[str] = typer.Option(
+        None,
+        "--search",
+        "-q",
+        help="Filter fields by keyword (searches name and description)",
+    ),
+    output: str = typer.Option(
+        "table",
+        "--output",
+        "-o",
+        help="Output format: table or json",
+    ),
+) -> None:
+    """Show configuration reference for 'prime rl run config.toml'.
+
+    Displays all available config fields with types, defaults, and descriptions
+    sourced from the prime-rl Pydantic models (RLConfig).
+
+    Examples:
+
+        prime rl configs
+
+        prime rl configs --section trainer
+
+        prime rl configs --section orchestrator.sampling --depth 2
+
+        prime rl configs --search lora
+
+        prime rl configs --output json
+    """
+    schema = _load_rl_schema()
+    defs = schema.get("$defs", {})
+
+    if output == "json":
+        if section:
+            # Navigate to the section in the schema
+            parts = section.split(".")
+            current = schema
+            for part in parts:
+                props = current.get("properties", {})
+                if part not in props:
+                    console.print(f"[red]Error:[/red] Unknown section '{section}'")
+                    raise typer.Exit(1)
+                prop = props[part]
+                # Resolve $ref
+                if "$ref" in prop:
+                    current = _resolve_ref(prop["$ref"], defs)
+                elif "anyOf" in prop:
+                    for variant in prop["anyOf"]:
+                        if "$ref" in variant:
+                            current = _resolve_ref(variant["$ref"], defs)
+                            break
+                    else:
+                        current = prop
+                else:
+                    current = prop
+            output_data_as_json(current, console)
+        else:
+            output_data_as_json(schema, console)
+        return
+
+    # Determine starting properties
+    properties = schema.get("properties", {})
+    prefix = ""
+
+    if section:
+        parts = section.split(".")
+        current_schema = schema
+        for part in parts:
+            props = current_schema.get("properties", {})
+            if part not in props:
+                console.print(f"[red]Error:[/red] Unknown section '{section}'")
+                available = ", ".join(sorted(props.keys()))
+                console.print(f"[dim]Available: {available}[/dim]")
+                raise typer.Exit(1)
+            prop = props[part]
+            prefix = f"{prefix}.{part}" if prefix else part
+            # Resolve ref to get sub-properties
+            ref_schema = None
+            if "$ref" in prop:
+                ref_schema = _resolve_ref(prop["$ref"], defs)
+            elif "anyOf" in prop:
+                for variant in prop["anyOf"]:
+                    if "$ref" in variant:
+                        ref_schema = _resolve_ref(variant["$ref"], defs)
+                        break
+            elif "oneOf" in prop:
+                for variant in prop["oneOf"]:
+                    if "$ref" in variant:
+                        ref_schema = _resolve_ref(variant["$ref"], defs)
+                        break
+            if ref_schema and "properties" in ref_schema:
+                current_schema = ref_schema
+            else:
+                # Leaf field, just show it
+                type_str = _schema_type_str(prop, defs)
+                desc = prop.get("description", "")
+                default = (
+                    _format_default(prop.get("default", "—")) if "default" in prop else "required"
+                )
+                console.print(f"[bold]{prefix}[/bold]")
+                console.print(f"  Type:    {type_str}")
+                console.print(f"  Default: {default}")
+                if desc:
+                    console.print(f"  {desc}")
+                return
+
+        properties = current_schema.get("properties", {})
+
+    rows = _collect_fields(properties, defs, prefix=prefix, depth=0, max_depth=depth)
+
+    # Apply search filter
+    if search:
+        search_lower = search.lower()
+        rows = [r for r in rows if search_lower in r[0].lower() or search_lower in r[3].lower()]
+
+    if not rows:
+        console.print("[yellow]No matching config fields found.[/yellow]")
+        return
+
+    title = "RLConfig Reference"
+    if section:
+        title = f"RLConfig: [bold]{section}[/bold]"
+
+    table = Table(title=title, show_lines=True, expand=True)
+    table.add_column("Field", style="cyan", no_wrap=True, ratio=2)
+    table.add_column("Type", style="green", no_wrap=True, ratio=1)
+    table.add_column("Default", style="yellow", no_wrap=True, ratio=1)
+    table.add_column("Description", ratio=4)
+
+    for path, type_str, default, desc in rows:
+        # Indent nested fields for readability
+        indent_level = path.count(".") - (prefix.count(".") if prefix else 0)
+        display_path = ("  " * indent_level) + path.rsplit(".", 1)[-1] if indent_level > 0 else path
+        table.add_row(display_path, type_str, default, desc)
+
+    console.print(table)
+    console.print(
+        f"\n[dim]Showing {len(rows)} field(s). "
+        f"Use --section to drill into a subsection, --depth to expand more levels, "
+        f"or --search to filter.[/dim]"
+    )
+
+
 @app.command("init", rich_help_panel="Commands")
 def init_config(
     output_path: str = typer.Argument(
