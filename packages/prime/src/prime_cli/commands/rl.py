@@ -1435,6 +1435,7 @@ def show_configs(
     """
     schema = _load_rl_schema()
     defs = schema.get("$defs", {})
+    validate_output_format(output, console)
 
     if output == "json":
         if section:
@@ -1535,7 +1536,7 @@ def show_configs(
 
     for path, type_str, default, desc in rows:
         # Indent nested fields for readability
-        indent_level = path.count(".") - (prefix.count(".") if prefix else 0)
+        indent_level = path.count(".") - (prefix.count(".") + 1 if prefix else 0)
         display_path = ("  " * indent_level) + path.rsplit(".", 1)[-1] if indent_level > 0 else path
         table.add_row(display_path, type_str, default, desc)
 
