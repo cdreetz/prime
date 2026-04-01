@@ -1528,11 +1528,11 @@ def show_configs(
     if section:
         title = f"RLConfig: [bold]{section}[/bold]"
 
-    table = Table(title=title, show_lines=True, expand=True)
-    table.add_column("Field", style="cyan", no_wrap=True, ratio=2)
-    table.add_column("Type", style="green", no_wrap=True, ratio=1)
-    table.add_column("Default", style="yellow", no_wrap=True, ratio=1)
-    table.add_column("Description", ratio=4)
+    table = Table(title=title)
+    table.add_column("Field", style="cyan", no_wrap=True)
+    table.add_column("Type", style="green")
+    table.add_column("Default", style="yellow")
+    table.add_column("Description", style="dim")
 
     for path, type_str, default, desc in rows:
         # Indent nested fields for readability
