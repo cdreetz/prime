@@ -1255,10 +1255,8 @@ def get_logs(
 
 
 def _load_rl_schema() -> dict:
-    """Load the RL config JSON schema bundled with the package."""
-    schema_path = Path(__file__).parent.parent / "data" / "rl_config_schema.json"
-    with open(schema_path) as f:
-        return json.load(f)
+    """Generate JSON schema from the hosted RLConfig model."""
+    return RLConfig.model_json_schema()
 
 
 def _resolve_ref(ref: str, defs: dict) -> dict:
@@ -1395,7 +1393,7 @@ def show_configs(
         None,
         "--section",
         "-s",
-        help="Show a specific config section (e.g. 'trainer', 'orchestrator')",
+        help="Show a specific config section (e.g. 'sampling', 'buffer')",
     ),
     depth: int = typer.Option(
         1,
@@ -1419,15 +1417,15 @@ def show_configs(
     """Show configuration reference for 'prime rl run config.toml'.
 
     Displays all available config fields with types, defaults, and descriptions
-    sourced from the prime-rl Pydantic models (RLConfig).
+    for the hosted RL config.
 
     Examples:
 
         prime rl configs
 
-        prime rl configs --section trainer
+        prime rl configs --section sampling
 
-        prime rl configs --section orchestrator.sampling --depth 2
+        prime rl configs --section buffer --depth 2
 
         prime rl configs --search lora
 
