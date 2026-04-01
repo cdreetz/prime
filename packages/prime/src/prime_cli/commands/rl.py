@@ -267,10 +267,19 @@ id = "{env_value}"
 class EnvConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    name: str | None = None
-    args: Dict[str, Any] = Field(default_factory=dict)
-    version: str | None = None
+    id: str = Field(description="ID of the environment to use.")
+    name: str | None = Field(
+        default=None,
+        description="Name of the environment. Defaults to the id.",
+    )
+    args: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arguments to pass to the environment.",
+    )
+    version: str | None = Field(
+        default=None,
+        description="Version of the environment to use.",
+    )
 
     @model_validator(mode="after")
     def parse_version_from_id(self) -> "EnvConfig":
@@ -296,12 +305,27 @@ class EnvConfig(BaseModel):
 class EvalEnvConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    name: str | None = None
-    args: Dict[str, Any] = Field(default_factory=dict)
-    num_examples: int | None = None
-    rollouts_per_example: int | None = None
-    version: str | None = None
+    id: str = Field(description="ID of the environment to use.")
+    name: str | None = Field(
+        default=None,
+        description="Name of the environment. Defaults to the id.",
+    )
+    args: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arguments to pass to the environment.",
+    )
+    num_examples: int | None = Field(
+        default=None,
+        description="Number of examples to evaluate. If not set, uses the eval-level value.",
+    )
+    rollouts_per_example: int | None = Field(
+        default=None,
+        description="Samples to generate per example. If not set, uses the eval-level value.",
+    )
+    version: str | None = Field(
+        default=None,
+        description="Version of the environment to use.",
+    )
 
     @model_validator(mode="after")
     def parse_version_from_id(self) -> "EvalEnvConfig":
@@ -331,32 +355,78 @@ class EvalEnvConfig(BaseModel):
 class TemperatureSchedulerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: str = "linear"  # "linear" or "cosine"
-    start_temperature: float
-    end_temperature: float
-    total_steps: int | None = None
+    type: str = Field(
+        default="linear",
+        description="Schedule shape: 'linear' or 'cosine'.",
+    )
+    start_temperature: float = Field(
+        description="Temperature at step 0.",
+    )
+    end_temperature: float = Field(
+        description="Temperature at final step.",
+    )
+    total_steps: int | None = Field(
+        default=None,
+        description="Steps to reach end_temperature. Defaults to max_steps.",
+    )
 
 
 class SamplingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    max_tokens: int | None = None
-    temperature: float | None = None
-    repetition_penalty: float | None = None
-    min_tokens: int | None = None
-    seed: int | None = None
-    temp_scheduler: TemperatureSchedulerConfig | None = None
-    extra_body: Dict[str, Any] | None = None
+    max_tokens: int | None = Field(
+        default=None,
+        description="Max output tokens per turn. None = generate until EOS.",
+    )
+    temperature: float | None = Field(
+        default=None,
+        description="Sampling temperature. Cannot be set with temp_scheduler.",
+    )
+    repetition_penalty: float | None = Field(
+        default=None,
+        description="Penalty for repeating tokens. >1 discourages, <1 encourages.",
+    )
+    min_tokens: int | None = Field(
+        default=None,
+        description="Min output tokens to generate per sequence.",
+    )
+    seed: int | None = Field(
+        default=None,
+        description="Random seed for sampling. None = no seeding.",
+    )
+    temp_scheduler: TemperatureSchedulerConfig | None = Field(
+        default=None,
+        description="Temperature schedule over training steps. Set this OR temperature.",
+    )
+    extra_body: Dict[str, Any] | None = Field(
+        default=None,
+        description="Extra body to pass with each request to the inference server.",
+    )
 
 
 class EvalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    interval: int | None = None
-    num_examples: int | None = None
-    rollouts_per_example: int | None = None
-    eval_base_model: bool | None = None
-    env: List[EvalEnvConfig] = Field(default_factory=list)
+    interval: int | None = Field(
+        default=None,
+        description="Step interval at which to evaluate the model.",
+    )
+    num_examples: int | None = Field(
+        default=None,
+        description="Number of examples to evaluate per environment.",
+    )
+    rollouts_per_example: int | None = Field(
+        default=None,
+        description="Samples to generate per example for each environment.",
+    )
+    eval_base_model: bool | None = Field(
+        default=None,
+        description="Whether to also evaluate the base (un-trained) model.",
+    )
+    env: List[EvalEnvConfig] = Field(
+        default_factory=list,
+        description="Evaluation environments to run.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         if not self.env:
@@ -376,9 +446,18 @@ class EvalConfig(BaseModel):
 class ValConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    num_examples: int | None = None
-    rollouts_per_example: int | None = None
-    interval: int | None = None
+    num_examples: int | None = Field(
+        default=None,
+        description="Number of examples to use for validation.",
+    )
+    rollouts_per_example: int | None = Field(
+        default=None,
+        description="Samples to generate per example for validation.",
+    )
+    interval: int | None = Field(
+        default=None,
+        description="Step interval at which to validate the model.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         result: Dict[str, Any] = {}
@@ -394,14 +473,38 @@ class ValConfig(BaseModel):
 class BufferConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    easy_threshold: float | None = None
-    hard_threshold: float | None = None
-    easy_fraction: float | None = None
-    hard_fraction: float | None = None
-    online_difficulty_filtering: bool | None = None
-    env_ratios: List[float] | None = None
-    skip_verification: bool | None = None
-    seed: int | None = None
+    easy_threshold: float | None = Field(
+        default=None,
+        description="If avg reward >= this, mark problem as easy.",
+    )
+    hard_threshold: float | None = Field(
+        default=None,
+        description="If avg reward <= this, mark problem as hard.",
+    )
+    easy_fraction: float | None = Field(
+        default=None,
+        description="Fraction of easy problems to convert to normal for sampling.",
+    )
+    hard_fraction: float | None = Field(
+        default=None,
+        description="Fraction of hard problems to convert to normal for sampling.",
+    )
+    online_difficulty_filtering: bool | None = Field(
+        default=None,
+        description="Filter rollouts by difficulty (drop avg reward 0.0 or 1.0).",
+    )
+    env_ratios: List[float] | None = Field(
+        default=None,
+        description="Ratios for sampling from each environment. None = uniform.",
+    )
+    skip_verification: bool | None = Field(
+        default=None,
+        description="Whether to skip rollout verification.",
+    )
+    seed: int | None = Field(
+        default=None,
+        description="Random seed for the buffer. If set, sampling is deterministic.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         result: Dict[str, Any] = {}
@@ -427,16 +530,31 @@ class BufferConfig(BaseModel):
 class WandbConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    entity: str | None = None
-    project: str | None = None
-    name: str | None = None
+    entity: str | None = Field(
+        default=None,
+        description="The W&B entity (user or team) to log to.",
+    )
+    project: str | None = Field(
+        default=None,
+        description="The W&B project to log to.",
+    )
+    name: str | None = Field(
+        default=None,
+        description="The W&B run name.",
+    )
 
 
 class CheckpointsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    interval: int | None = None  # Save checkpoint every N steps
-    keep_cloud: int | None = None  # Keep N checkpoints in cloud (-1 = keep all)
+    interval: int | None = Field(
+        default=None,
+        description="Save a checkpoint every N steps.",
+    )
+    keep_cloud: int | None = Field(
+        default=None,
+        description="Keep N checkpoints in cloud storage. -1 = keep all.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         result: Dict[str, Any] = {}
@@ -450,8 +568,14 @@ class CheckpointsConfig(BaseModel):
 class AdaptersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    interval: int | None = None  # Upload adapter every N steps (0 = only at run end)
-    keep_last: int | None = None  # Keep N adapters in cloud (-1 = keep all)
+    interval: int | None = Field(
+        default=None,
+        description="Upload adapter every N steps. 0 = only at run end.",
+    )
+    keep_last: int | None = Field(
+        default=None,
+        description="Keep N adapters in cloud storage. -1 = keep all.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         result: Dict[str, Any] = {}
@@ -465,7 +589,10 @@ class AdaptersConfig(BaseModel):
 class InfrastructureConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    compute_size: str | None = None
+    compute_size: str | None = Field(
+        default=None,
+        description="Compute tier for the run (e.g. GPU type/count).",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         d: Dict[str, Any] = {}
@@ -477,28 +604,88 @@ class InfrastructureConfig(BaseModel):
 class RLConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = None
-    model: str
-    max_steps: int = 100
-    batch_size: int = 128
-    rollouts_per_example: int = 8
-    learning_rate: float | None = None
-    lora_alpha: int | None = None
-    oversampling_factor: float | None = None
-    max_async_level: int | None = None
-    checkpoint_id: str | None = None  # Warm-start from an existing checkpoint
-    cluster_name: str | None = None  # Admin-only: target a specific cluster by name
-    env: List[EnvConfig] = Field(default_factory=list)
-    sampling: SamplingConfig = Field(default_factory=SamplingConfig)
-    eval: EvalConfig = Field(default_factory=EvalConfig)
-    val: ValConfig = Field(default_factory=ValConfig)
-    buffer: BufferConfig = Field(default_factory=BufferConfig)
-    wandb: WandbConfig = Field(default_factory=WandbConfig)
-    checkpoints: CheckpointsConfig = Field(default_factory=CheckpointsConfig)
-    adapters: AdaptersConfig = Field(default_factory=AdaptersConfig)
-    infrastructure: InfrastructureConfig = Field(default_factory=InfrastructureConfig)
-    env_file: List[str] = Field(default_factory=list)  # deprecated, use env_files
-    env_files: List[str] = Field(default_factory=list)
+    name: str | None = Field(default=None, description="Name of the run.")
+    model: str = Field(description="Name or path of the HF model to train.")
+    max_steps: int = Field(
+        default=100,
+        description="Maximum number of training steps.",
+    )
+    batch_size: int = Field(
+        default=128,
+        description="Number of samples to train on per step.",
+    )
+    rollouts_per_example: int = Field(
+        default=8,
+        description="Number of output sequences to generate per example.",
+    )
+    learning_rate: float | None = Field(
+        default=None,
+        description="Learning rate for training.",
+    )
+    lora_alpha: int | None = Field(
+        default=None,
+        description="LoRA alpha scaling factor. None = full fine-tuning.",
+    )
+    oversampling_factor: float | None = Field(
+        default=None,
+        description="Multiplier for max in-flight rollouts relative to batch_size.",
+    )
+    max_async_level: int | None = Field(
+        default=None,
+        description="Max steps inference can be ahead of training. 0 = synchronous.",
+    )
+    checkpoint_id: str | None = Field(
+        default=None,
+        description="Warm-start from an existing checkpoint.",
+    )
+    cluster_name: str | None = Field(
+        default=None,
+        description="Admin-only: target a specific cluster by name.",
+    )
+    env: List[EnvConfig] = Field(
+        default_factory=list,
+        description="Training environments to use.",
+    )
+    sampling: SamplingConfig = Field(
+        default_factory=SamplingConfig,
+        description="Configures how tokens are sampled from the model.",
+    )
+    eval: EvalConfig = Field(
+        default_factory=EvalConfig,
+        description="Evaluation configuration.",
+    )
+    val: ValConfig = Field(
+        default_factory=ValConfig,
+        description="Validation configuration.",
+    )
+    buffer: BufferConfig = Field(
+        default_factory=BufferConfig,
+        description="Data buffer and difficulty filtering configuration.",
+    )
+    wandb: WandbConfig = Field(
+        default_factory=WandbConfig,
+        description="Weights & Biases logging configuration.",
+    )
+    checkpoints: CheckpointsConfig = Field(
+        default_factory=CheckpointsConfig,
+        description="Checkpoint saving configuration.",
+    )
+    adapters: AdaptersConfig = Field(
+        default_factory=AdaptersConfig,
+        description="LoRA adapter upload configuration.",
+    )
+    infrastructure: InfrastructureConfig = Field(
+        default_factory=InfrastructureConfig,
+        description="Compute infrastructure configuration.",
+    )
+    env_file: List[str] = Field(
+        default_factory=list,
+        description="Deprecated, use env_files.",
+    )
+    env_files: List[str] = Field(
+        default_factory=list,
+        description="Paths to .env files to load into the run environment.",
+    )
 
 
 def _format_validation_errors(errors: list[Any]) -> list[str]:
