@@ -27,7 +27,7 @@ from .commands.upgrade import app as upgrade_app
 from .commands.whoami import app as whoami_app
 from .core import Config
 from .utils import PlainTyper, get_console
-from .utils.version_check import check_for_update
+from .utils.version_check import check_for_update, is_outdated
 
 app = PlainTyper(
     name="prime",
@@ -108,6 +108,22 @@ def callback(
             console.print("[dim]Set PRIME_DISABLE_VERSION_CHECK=1 to disable this check[/dim]\n")
 
 
+def _show_upgrade_hint_on_error() -> None:
+    """Show a hint to upgrade if the CLI is outdated. Called on error exits."""
+    try:
+        outdated, latest = is_outdated()
+        if outdated and latest:
+            console = get_console(stderr=True, force_terminal=sys.stderr.isatty())
+            console.print(
+                f"\n[yellow]Hint: You are using prime v{__version__}, "
+                f"but v{latest} is available. "
+                f"This error may be fixed in the latest version.[/yellow]"
+            )
+            console.print("[yellow]Run: prime upgrade[/yellow]")
+    except Exception:
+        pass
+
+
 def run() -> None:
     """Entry point for the CLI"""
     try:
@@ -115,3 +131,10 @@ def run() -> None:
     except typer.Abort:
         typer.echo("\nOperation cancelled")
         raise typer.Exit(0)
+    except SystemExit as e:
+        if e.code and e.code != 0:
+            _show_upgrade_hint_on_error()
+        raise
+    except Exception:
+        _show_upgrade_hint_on_error()
+        raise

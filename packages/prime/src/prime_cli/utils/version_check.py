@@ -104,6 +104,36 @@ def get_latest_pypi_version() -> str | None:
         return None
 
 
+def is_outdated() -> Tuple[bool, str | None]:
+    """Check if the installed version is outdated using cached data only (no network call).
+
+    Returns a tuple of (is_outdated, latest_version).
+    This is meant for showing upgrade hints on errors without triggering network requests
+    or respecting notification throttling.
+    """
+    if os.environ.get("PRIME_DISABLE_VERSION_CHECK", "").lower() in ("1", "true", "yes"):
+        return (False, None)
+
+    try:
+        cache_data = _read_cache()
+        if not cache_data:
+            return (False, None)
+
+        latest_version = cache_data.get("latest_version")
+        if not latest_version:
+            return (False, None)
+
+        installed = version.parse(__version__)
+        latest = version.parse(latest_version)
+
+        if installed < latest:
+            return (True, latest_version)
+
+        return (False, latest_version)
+    except Exception:
+        return (False, None)
+
+
 def check_for_update() -> Tuple[bool, str | None]:
     """Check if a newer version of prime is available on PyPI."""
     if os.environ.get("PRIME_DISABLE_VERSION_CHECK", "").lower() in ("1", "true", "yes"):
