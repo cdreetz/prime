@@ -268,10 +268,19 @@ id = "{env_value}"
 class EnvConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    name: str | None = None
-    args: Dict[str, Any] = Field(default_factory=dict)
-    version: str | None = None
+    id: str = Field(description="ID of the environment to use.")
+    name: str | None = Field(
+        default=None,
+        description="Name of the environment. Defaults to the id.",
+    )
+    args: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arguments to pass to the environment.",
+    )
+    version: str | None = Field(
+        default=None,
+        description="Version of the environment to use.",
+    )
 
     @model_validator(mode="after")
     def parse_version_from_id(self) -> "EnvConfig":
@@ -297,12 +306,27 @@ class EnvConfig(BaseModel):
 class EvalEnvConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    id: str
-    name: str | None = None
-    args: Dict[str, Any] = Field(default_factory=dict)
-    num_examples: int | None = None
-    rollouts_per_example: int | None = None
-    version: str | None = None
+    id: str = Field(description="ID of the environment to use.")
+    name: str | None = Field(
+        default=None,
+        description="Name of the environment. Defaults to the id.",
+    )
+    args: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Arguments to pass to the environment.",
+    )
+    num_examples: int | None = Field(
+        default=None,
+        description="Number of examples to evaluate. If not set, uses the eval-level value.",
+    )
+    rollouts_per_example: int | None = Field(
+        default=None,
+        description="Samples to generate per example. If not set, uses the eval-level value.",
+    )
+    version: str | None = Field(
+        default=None,
+        description="Version of the environment to use.",
+    )
 
     @model_validator(mode="after")
     def parse_version_from_id(self) -> "EvalEnvConfig":
@@ -332,32 +356,78 @@ class EvalEnvConfig(BaseModel):
 class TemperatureSchedulerConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: str = "linear"  # "linear" or "cosine"
-    start_temperature: float
-    end_temperature: float
-    total_steps: int | None = None
+    type: str = Field(
+        default="linear",
+        description="Schedule shape: 'linear' or 'cosine'.",
+    )
+    start_temperature: float = Field(
+        description="Temperature at step 0.",
+    )
+    end_temperature: float = Field(
+        description="Temperature at final step.",
+    )
+    total_steps: int | None = Field(
+        default=None,
+        description="Steps to reach end_temperature. Defaults to max_steps.",
+    )
 
 
 class SamplingConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    max_tokens: int | None = None
-    temperature: float | None = None
-    repetition_penalty: float | None = None
-    min_tokens: int | None = None
-    seed: int | None = None
-    temp_scheduler: TemperatureSchedulerConfig | None = None
-    extra_body: Dict[str, Any] | None = None
+    max_tokens: int | None = Field(
+        default=None,
+        description="Max output tokens per turn. None = generate until EOS.",
+    )
+    temperature: float | None = Field(
+        default=None,
+        description="Sampling temperature. Cannot be set with temp_scheduler.",
+    )
+    repetition_penalty: float | None = Field(
+        default=None,
+        description="Penalty for repeating tokens. >1 discourages, <1 encourages.",
+    )
+    min_tokens: int | None = Field(
+        default=None,
+        description="Min output tokens to generate per sequence.",
+    )
+    seed: int | None = Field(
+        default=None,
+        description="Random seed for sampling. None = no seeding.",
+    )
+    temp_scheduler: TemperatureSchedulerConfig | None = Field(
+        default=None,
+        description="Temperature schedule over training steps. Set this OR temperature.",
+    )
+    extra_body: Dict[str, Any] | None = Field(
+        default=None,
+        description="Extra body to pass with each request to the inference server.",
+    )
 
 
 class EvalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    interval: int | None = None
-    num_examples: int | None = None
-    rollouts_per_example: int | None = None
-    eval_base_model: bool | None = None
-    env: List[EvalEnvConfig] = Field(default_factory=list)
+    interval: int | None = Field(
+        default=None,
+        description="Step interval at which to evaluate the model.",
+    )
+    num_examples: int | None = Field(
+        default=None,
+        description="Number of examples to evaluate per environment.",
+    )
+    rollouts_per_example: int | None = Field(
+        default=None,
+        description="Samples to generate per example for each environment.",
+    )
+    eval_base_model: bool | None = Field(
+        default=None,
+        description="Whether to also evaluate the base (un-trained) model.",
+    )
+    env: List[EvalEnvConfig] = Field(
+        default_factory=list,
+        description="Evaluation environments to run.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         if not self.env:
@@ -377,9 +447,18 @@ class EvalConfig(BaseModel):
 class ValConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    num_examples: int | None = None
-    rollouts_per_example: int | None = None
-    interval: int | None = None
+    num_examples: int | None = Field(
+        default=None,
+        description="Number of examples to use for validation.",
+    )
+    rollouts_per_example: int | None = Field(
+        default=None,
+        description="Samples to generate per example for validation.",
+    )
+    interval: int | None = Field(
+        default=None,
+        description="Step interval at which to validate the model.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         result: Dict[str, Any] = {}
@@ -395,14 +474,38 @@ class ValConfig(BaseModel):
 class BufferConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    easy_threshold: float | None = None
-    hard_threshold: float | None = None
-    easy_fraction: float | None = None
-    hard_fraction: float | None = None
-    online_difficulty_filtering: bool | None = None
-    env_ratios: List[float] | None = None
-    skip_verification: bool | None = None
-    seed: int | None = None
+    easy_threshold: float | None = Field(
+        default=None,
+        description="If avg reward >= this, mark problem as easy.",
+    )
+    hard_threshold: float | None = Field(
+        default=None,
+        description="If avg reward <= this, mark problem as hard.",
+    )
+    easy_fraction: float | None = Field(
+        default=None,
+        description="Fraction of easy problems to convert to normal for sampling.",
+    )
+    hard_fraction: float | None = Field(
+        default=None,
+        description="Fraction of hard problems to convert to normal for sampling.",
+    )
+    online_difficulty_filtering: bool | None = Field(
+        default=None,
+        description="Filter rollouts by difficulty (drop avg reward 0.0 or 1.0).",
+    )
+    env_ratios: List[float] | None = Field(
+        default=None,
+        description="Ratios for sampling from each environment. None = uniform.",
+    )
+    skip_verification: bool | None = Field(
+        default=None,
+        description="Whether to skip rollout verification.",
+    )
+    seed: int | None = Field(
+        default=None,
+        description="Random seed for the buffer. If set, sampling is deterministic.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         result: Dict[str, Any] = {}
@@ -428,16 +531,31 @@ class BufferConfig(BaseModel):
 class WandbConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    entity: str | None = None
-    project: str | None = None
-    name: str | None = None
+    entity: str | None = Field(
+        default=None,
+        description="The W&B entity (user or team) to log to.",
+    )
+    project: str | None = Field(
+        default=None,
+        description="The W&B project to log to.",
+    )
+    name: str | None = Field(
+        default=None,
+        description="The W&B run name.",
+    )
 
 
 class CheckpointsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    interval: int | None = None  # Save checkpoint every N steps
-    keep_cloud: int | None = None  # Keep N checkpoints in cloud (-1 = keep all)
+    interval: int | None = Field(
+        default=None,
+        description="Save a checkpoint every N steps.",
+    )
+    keep_cloud: int | None = Field(
+        default=None,
+        description="Keep N checkpoints in cloud storage. -1 = keep all.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         result: Dict[str, Any] = {}
@@ -451,8 +569,14 @@ class CheckpointsConfig(BaseModel):
 class AdaptersConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    interval: int | None = None  # Upload adapter every N steps (0 = only at run end)
-    keep_last: int | None = None  # Keep N adapters in cloud (-1 = keep all)
+    interval: int | None = Field(
+        default=None,
+        description="Upload adapter every N steps. 0 = only at run end.",
+    )
+    keep_last: int | None = Field(
+        default=None,
+        description="Keep N adapters in cloud storage. -1 = keep all.",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         result: Dict[str, Any] = {}
@@ -466,7 +590,10 @@ class AdaptersConfig(BaseModel):
 class InfrastructureConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    compute_size: str | None = None
+    compute_size: str | None = Field(
+        default=None,
+        description="Compute tier for the run (e.g. GPU type/count).",
+    )
 
     def to_api_dict(self) -> Dict[str, Any] | None:
         d: Dict[str, Any] = {}
@@ -478,28 +605,88 @@ class InfrastructureConfig(BaseModel):
 class RLConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    name: str | None = None
-    model: str
-    max_steps: int = 100
-    batch_size: int = 128
-    rollouts_per_example: int = 8
-    learning_rate: float | None = None
-    lora_alpha: int | None = None
-    oversampling_factor: float | None = None
-    max_async_level: int | None = None
-    checkpoint_id: str | None = None  # Warm-start from an existing checkpoint
-    cluster_name: str | None = None  # Admin-only: target a specific cluster by name
-    env: List[EnvConfig] = Field(default_factory=list)
-    sampling: SamplingConfig = Field(default_factory=SamplingConfig)
-    eval: EvalConfig = Field(default_factory=EvalConfig)
-    val: ValConfig = Field(default_factory=ValConfig)
-    buffer: BufferConfig = Field(default_factory=BufferConfig)
-    wandb: WandbConfig = Field(default_factory=WandbConfig)
-    checkpoints: CheckpointsConfig = Field(default_factory=CheckpointsConfig)
-    adapters: AdaptersConfig = Field(default_factory=AdaptersConfig)
-    infrastructure: InfrastructureConfig = Field(default_factory=InfrastructureConfig)
-    env_file: List[str] = Field(default_factory=list)  # deprecated, use env_files
-    env_files: List[str] = Field(default_factory=list)
+    name: str | None = Field(default=None, description="Name of the run.")
+    model: str = Field(description="Name or path of the HF model to train.")
+    max_steps: int = Field(
+        default=100,
+        description="Maximum number of training steps.",
+    )
+    batch_size: int = Field(
+        default=128,
+        description="Number of samples to train on per step.",
+    )
+    rollouts_per_example: int = Field(
+        default=8,
+        description="Number of output sequences to generate per example.",
+    )
+    learning_rate: float | None = Field(
+        default=None,
+        description="Learning rate for training.",
+    )
+    lora_alpha: int | None = Field(
+        default=None,
+        description="LoRA alpha scaling factor. None = full fine-tuning.",
+    )
+    oversampling_factor: float | None = Field(
+        default=None,
+        description="Multiplier for max in-flight rollouts relative to batch_size.",
+    )
+    max_async_level: int | None = Field(
+        default=None,
+        description="Max steps inference can be ahead of training. 0 = synchronous.",
+    )
+    checkpoint_id: str | None = Field(
+        default=None,
+        description="Warm-start from an existing checkpoint.",
+    )
+    cluster_name: str | None = Field(
+        default=None,
+        description="Admin-only: target a specific cluster by name.",
+    )
+    env: List[EnvConfig] = Field(
+        default_factory=list,
+        description="Training environments to use.",
+    )
+    sampling: SamplingConfig = Field(
+        default_factory=SamplingConfig,
+        description="Configures how tokens are sampled from the model.",
+    )
+    eval: EvalConfig = Field(
+        default_factory=EvalConfig,
+        description="Evaluation configuration.",
+    )
+    val: ValConfig = Field(
+        default_factory=ValConfig,
+        description="Validation configuration.",
+    )
+    buffer: BufferConfig = Field(
+        default_factory=BufferConfig,
+        description="Data buffer and difficulty filtering configuration.",
+    )
+    wandb: WandbConfig = Field(
+        default_factory=WandbConfig,
+        description="Weights & Biases logging configuration.",
+    )
+    checkpoints: CheckpointsConfig = Field(
+        default_factory=CheckpointsConfig,
+        description="Checkpoint saving configuration.",
+    )
+    adapters: AdaptersConfig = Field(
+        default_factory=AdaptersConfig,
+        description="LoRA adapter upload configuration.",
+    )
+    infrastructure: InfrastructureConfig = Field(
+        default_factory=InfrastructureConfig,
+        description="Compute infrastructure configuration.",
+    )
+    env_file: List[str] = Field(
+        default_factory=list,
+        description="Deprecated, use env_files.",
+    )
+    env_files: List[str] = Field(
+        default_factory=list,
+        description="Paths to .env files to load into the run environment.",
+    )
 
 
 def _format_validation_errors(errors: list[Any]) -> list[str]:
@@ -1253,6 +1440,298 @@ def get_logs(
     except APIError as e:
         console.print(f"[red]Error:[/red] {e}")
         raise typer.Exit(1)
+
+
+def _load_rl_schema() -> dict:
+    """Generate JSON schema from the hosted RLConfig model."""
+    return RLConfig.model_json_schema()
+
+
+def _resolve_ref(ref: str, defs: dict) -> dict:
+    """Resolve a $ref like '#/$defs/Foo' to the actual schema dict."""
+    name = ref.rsplit("/", 1)[-1]
+    return defs.get(name, {})
+
+
+def _schema_type_str(prop: dict, defs: dict) -> str:
+    """Derive a human-readable type string from a JSON schema property."""
+    # Simple type
+    if "type" in prop:
+        t = prop["type"]
+        if t == "array":
+            items = prop.get("items", {})
+            inner = items.get("type", "any")
+            return f"list[{inner}]"
+        if t == "object":
+            return "dict"
+        return t
+
+    # $ref
+    if "$ref" in prop:
+        resolved = _resolve_ref(prop["$ref"], defs)
+        return resolved.get("title", prop["$ref"].rsplit("/", 1)[-1])
+
+    # anyOf (nullable or union)
+    if "anyOf" in prop:
+        types = []
+        has_null = False
+        for variant in prop["anyOf"]:
+            if variant.get("type") == "null":
+                has_null = True
+            elif "$ref" in variant:
+                resolved = _resolve_ref(variant["$ref"], defs)
+                types.append(resolved.get("title", variant["$ref"].rsplit("/", 1)[-1]))
+            elif variant.get("type") == "array":
+                items = variant.get("items", {})
+                inner = items.get("type", "any")
+                types.append(f"list[{inner}]")
+            elif "type" in variant:
+                types.append(variant["type"])
+        type_str = " | ".join(types) if types else "any"
+        if has_null:
+            type_str += " | null"
+        return type_str
+
+    # oneOf (discriminated unions)
+    if "oneOf" in prop:
+        types = []
+        for variant in prop["oneOf"]:
+            if "$ref" in variant:
+                resolved = _resolve_ref(variant["$ref"], defs)
+                types.append(resolved.get("title", variant["$ref"].rsplit("/", 1)[-1]))
+        return " | ".join(types) if types else "any"
+
+    # const
+    if "const" in prop:
+        return repr(prop["const"])
+
+    # enum
+    if "enum" in prop:
+        return " | ".join(repr(v) for v in prop["enum"])
+
+    return "any"
+
+
+def _format_default(val: Any) -> str:
+    """Format a default value for display."""
+    if val is None:
+        return "null"
+    if isinstance(val, bool):
+        return str(val).lower()
+    if isinstance(val, str):
+        return f'"{val}"'
+    if isinstance(val, list):
+        if not val:
+            return "[]"
+        return json.dumps(val)
+    if isinstance(val, dict):
+        if not val:
+            return "{}"
+        return json.dumps(val)
+    return str(val)
+
+
+def _collect_fields(
+    properties: dict,
+    defs: dict,
+    prefix: str = "",
+    depth: int = 0,
+    max_depth: int = 1,
+) -> list[tuple[str, str, str, str]]:
+    """Recursively collect (path, type, default, description) tuples from schema properties."""
+    rows: list[tuple[str, str, str, str]] = []
+    for name, prop in properties.items():
+        path = f"{prefix}{name}" if not prefix else f"{prefix}.{name}"
+        type_str = _schema_type_str(prop, defs)
+        desc = prop.get("description", "")
+        default = _format_default(prop.get("default", "—")) if "default" in prop else "required"
+
+        rows.append((path, type_str, default, desc))
+
+        # Recurse into nested objects if within depth limit
+        if depth < max_depth:
+            ref_schema = None
+            if "$ref" in prop:
+                ref_schema = _resolve_ref(prop["$ref"], defs)
+            elif "anyOf" in prop:
+                for variant in prop["anyOf"]:
+                    if "$ref" in variant:
+                        ref_schema = _resolve_ref(variant["$ref"], defs)
+                        break
+            elif "oneOf" in prop:
+                # For discriminated unions, don't auto-expand (user can use --section)
+                pass
+
+            if ref_schema and "properties" in ref_schema:
+                rows.extend(
+                    _collect_fields(
+                        ref_schema["properties"],
+                        defs,
+                        prefix=path,
+                        depth=depth + 1,
+                        max_depth=max_depth,
+                    )
+                )
+    return rows
+
+
+@app.command("configs", rich_help_panel="Commands")
+def show_configs(
+    section: Optional[str] = typer.Option(
+        None,
+        "--section",
+        "-s",
+        help="Show a specific config section (e.g. 'sampling', 'buffer')",
+    ),
+    depth: int = typer.Option(
+        1,
+        "--depth",
+        "-d",
+        help="How many levels of nested configs to expand (default: 1)",
+    ),
+    search: Optional[str] = typer.Option(
+        None,
+        "--search",
+        "-q",
+        help="Filter fields by keyword (searches name and description)",
+    ),
+    output: str = typer.Option(
+        "table",
+        "--output",
+        "-o",
+        help="Output format: table or json",
+    ),
+) -> None:
+    """Show configuration reference for 'prime rl run config.toml'.
+
+    Displays all available config fields with types, defaults, and descriptions
+    for the hosted RL config.
+
+    Examples:
+
+        prime rl configs
+
+        prime rl configs --section sampling
+
+        prime rl configs --section buffer --depth 2
+
+        prime rl configs --search lora
+
+        prime rl configs --output json
+    """
+    schema = _load_rl_schema()
+    defs = schema.get("$defs", {})
+    validate_output_format(output, console)
+
+    if output == "json":
+        if section:
+            # Navigate to the section in the schema
+            parts = section.split(".")
+            current = schema
+            for part in parts:
+                props = current.get("properties", {})
+                if part not in props:
+                    console.print(f"[red]Error:[/red] Unknown section '{section}'")
+                    raise typer.Exit(1)
+                prop = props[part]
+                # Resolve $ref
+                if "$ref" in prop:
+                    current = _resolve_ref(prop["$ref"], defs)
+                elif "anyOf" in prop:
+                    for variant in prop["anyOf"]:
+                        if "$ref" in variant:
+                            current = _resolve_ref(variant["$ref"], defs)
+                            break
+                    else:
+                        current = prop
+                else:
+                    current = prop
+            output_data_as_json(current, console)
+        else:
+            output_data_as_json(schema, console)
+        return
+
+    # Determine starting properties
+    properties = schema.get("properties", {})
+    prefix = ""
+
+    if section:
+        parts = section.split(".")
+        current_schema = schema
+        for part in parts:
+            props = current_schema.get("properties", {})
+            if part not in props:
+                console.print(f"[red]Error:[/red] Unknown section '{section}'")
+                available = ", ".join(sorted(props.keys()))
+                console.print(f"[dim]Available: {available}[/dim]")
+                raise typer.Exit(1)
+            prop = props[part]
+            prefix = f"{prefix}.{part}" if prefix else part
+            # Resolve ref to get sub-properties
+            ref_schema = None
+            if "$ref" in prop:
+                ref_schema = _resolve_ref(prop["$ref"], defs)
+            elif "anyOf" in prop:
+                for variant in prop["anyOf"]:
+                    if "$ref" in variant:
+                        ref_schema = _resolve_ref(variant["$ref"], defs)
+                        break
+            elif "oneOf" in prop:
+                for variant in prop["oneOf"]:
+                    if "$ref" in variant:
+                        ref_schema = _resolve_ref(variant["$ref"], defs)
+                        break
+            if ref_schema and "properties" in ref_schema:
+                current_schema = ref_schema
+            else:
+                # Leaf field, just show it
+                type_str = _schema_type_str(prop, defs)
+                desc = prop.get("description", "")
+                default = (
+                    _format_default(prop.get("default", "—")) if "default" in prop else "required"
+                )
+                console.print(f"[bold]{prefix}[/bold]")
+                console.print(f"  Type:    {type_str}")
+                console.print(f"  Default: {default}")
+                if desc:
+                    console.print(f"  {desc}")
+                return
+
+        properties = current_schema.get("properties", {})
+
+    rows = _collect_fields(properties, defs, prefix=prefix, depth=0, max_depth=depth)
+
+    # Apply search filter
+    if search:
+        search_lower = search.lower()
+        rows = [r for r in rows if search_lower in r[0].lower() or search_lower in r[3].lower()]
+
+    if not rows:
+        console.print("[yellow]No matching config fields found.[/yellow]")
+        return
+
+    title = "RLConfig Reference"
+    if section:
+        title = f"RLConfig: [bold]{section}[/bold]"
+
+    table = Table(title=title)
+    table.add_column("Field", style="cyan", no_wrap=True)
+    table.add_column("Type", style="green")
+    table.add_column("Default", style="yellow")
+    table.add_column("Description", style="dim")
+
+    for path, type_str, default, desc in rows:
+        # Indent nested fields for readability
+        indent_level = path.count(".") - (prefix.count(".") + 1 if prefix else 0)
+        display_path = ("  " * indent_level) + path.rsplit(".", 1)[-1] if indent_level > 0 else path
+        table.add_row(display_path, type_str, default, desc)
+
+    console.print(table)
+    console.print(
+        f"\n[dim]Showing {len(rows)} field(s). "
+        f"Use --section to drill into a subsection, --depth to expand more levels, "
+        f"or --search to filter.[/dim]"
+    )
 
 
 @app.command("init", rich_help_panel="Commands")
